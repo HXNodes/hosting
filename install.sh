@@ -173,18 +173,43 @@ install_dependencies() {
 setup_database() {
     print_step "Setting up database..."
     
-    # Secure MariaDB installation (non-interactive) - updated for newer versions
-    mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$DB_PASS';" 2>/dev/null || \
-    mysql -e "UPDATE mysql.user SET authentication_string=PASSWORD('$DB_PASS') WHERE User='root' AND Host='localhost';" 2>/dev/null || \
-    mysql -e "UPDATE mysql.user SET Password=PASSWORD('$DB_PASS') WHERE User='root' AND Host='localhost';" 2>/dev/null || true
+    # First, try to secure MariaDB installation without password
+    print_info "Securing MariaDB installation..."
     
-    mysql -e "DELETE FROM mysql.user WHERE User='';" 2>/dev/null || true
-    mysql -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');" 2>/dev/null || true
-    mysql -e "DROP DATABASE IF EXISTS test;" 2>/dev/null || true
-    mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
+    # Stop MariaDB to reset root password if needed
+    systemctl stop mariadb
+    
+    # Start MariaDB in safe mode to reset root password
+    mysqld_safe --skip-grant-tables --skip-networking &
+    sleep 3
+    
+    # Reset root password
+    mysql -u root <<EOF
+FLUSH PRIVILEGES;
+ALTER USER 'root'@'localhost' IDENTIFIED BY '$DB_PASS';
+FLUSH PRIVILEGES;
+EOF
+    
+    # Stop safe mode MariaDB
+    pkill -f mysqld_safe
+    sleep 2
+    
+    # Start MariaDB normally
+    systemctl start mariadb
+    
+    # Wait for MariaDB to be ready
+    sleep 5
+    
+    # Secure the installation
+    mysql -u root -p"$DB_PASS" <<EOF
+DELETE FROM mysql.user WHERE User='';
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+DROP DATABASE IF EXISTS test;
+FLUSH PRIVILEGES;
+EOF
     
     # Create database and user
-    mysql -u root -p"$DB_PASS" <<EOF 2>/dev/null || mysql <<EOF
+    mysql -u root -p"$DB_PASS" <<EOF
 CREATE DATABASE IF NOT EXISTS $DB_NAME;
 CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
 GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';
