@@ -304,11 +304,14 @@ DROP DATABASE IF EXISTS test;
 FLUSH PRIVILEGES;
 EOF
     
-    # Create database and user
+    # Create database and user with full permissions for Prisma
     mysql -u root -p"$DB_PASS" <<EOF
 CREATE DATABASE IF NOT EXISTS $DB_NAME;
 CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
 GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';
+GRANT CREATE ON *.* TO '$DB_USER'@'localhost';
+GRANT DROP ON *.* TO '$DB_USER'@'localhost';
+GRANT ALTER ON *.* TO '$DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 EOF
     
@@ -468,9 +471,13 @@ EOF
         # Generate Prisma client
         npx prisma generate
         
-        # Create and run initial migration
-        npx prisma migrate dev --name init --create-only
-        npx prisma migrate deploy
+        # Create initial migration without shadow database
+        print_info "Creating initial migration..."
+        npx prisma migrate dev --name init --create-only --skip-seed
+        
+        # Apply the migration directly
+        print_info "Applying migration..."
+        npx prisma migrate deploy --skip-seed
         
         print_success "Prisma database setup completed"
     fi
