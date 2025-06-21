@@ -328,19 +328,22 @@ install_panel_files() {
         # If that fails, try with local files
         print_warning "Repository clone failed, checking for local files..."
         
-        # Check if we're running from a git repository
-        if [[ -d ".git" ]] && [[ -f "backend/package.json" ]] && [[ -f "frontend/package.json" ]]; then
-            print_info "Using current directory as source..."
-            # We're already in the project directory, copy files to panel directory
-            cd /
-            cp -r $(pwd)/* $PANEL_DIR/
-            cd $PANEL_DIR
-            print_success "Local files copied to panel directory"
+        # Get the directory where the script is running from
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        
+        # Check if we're running from a git repository with project structure
+        if [[ -d "$SCRIPT_DIR/.git" ]] && [[ -f "$SCRIPT_DIR/backend/package.json" ]] && [[ -f "$SCRIPT_DIR/frontend/package.json" ]]; then
+            print_info "Using script directory as source: $SCRIPT_DIR"
+            # Copy only the project files, excluding system directories
+            rsync -av --exclude='.git' --exclude='node_modules' --exclude='dist' --exclude='build' "$SCRIPT_DIR/" ./
+            print_success "Project files copied from script directory"
         elif [[ -d "/root/hosting" ]]; then
-            cp -r /root/hosting/* .
+            print_info "Using /root/hosting as source..."
+            rsync -av --exclude='.git' --exclude='node_modules' --exclude='dist' --exclude='build' /root/hosting/ ./
             print_success "Local files copied from /root/hosting"
         elif [[ -d "/home/$SUDO_USER/hosting" ]]; then
-            cp -r /home/$SUDO_USER/hosting/* .
+            print_info "Using /home/$SUDO_USER/hosting as source..."
+            rsync -av --exclude='.git' --exclude='node_modules' --exclude='dist' --exclude='build' "/home/$SUDO_USER/hosting/" ./
             print_success "Local files copied from /home/$SUDO_USER/hosting"
         else
             print_error "No local files found. Please ensure the repository is accessible or files are present."
