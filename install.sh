@@ -57,31 +57,7 @@ print_success() {
 }
 
 # =============================================================================
-# MAIN MENU
-# =============================================================================
-
-show_menu() {
-    print_header
-    echo "What would you like to do?"
-    echo ""
-    echo "1) Install Panel (Web Interface)"
-    echo "2) Install Daemon (Node Agent)"
-    echo "3) Uninstall Everything"
-    echo "4) Exit"
-    echo ""
-    read -p "Enter your choice (1-4): " choice
-    
-    case $choice in
-        1) install_panel ;;
-        2) install_daemon ;;
-        3) uninstall_all ;;
-        4) exit 0 ;;
-        *) print_error "Invalid choice"; show_menu ;;
-    esac
-}
-
-# =============================================================================
-# PANEL INSTALLATION
+# PANEL INSTALLATION FUNCTIONS
 # =============================================================================
 
 install_panel() {
@@ -413,7 +389,7 @@ print_panel_summary() {
 }
 
 # =============================================================================
-# DAEMON INSTALLATION
+# DAEMON INSTALLATION FUNCTIONS
 # =============================================================================
 
 install_daemon() {
@@ -577,7 +553,7 @@ print_daemon_summary() {
 }
 
 # =============================================================================
-# UNINSTALLATION
+# UNINSTALLATION FUNCTIONS
 # =============================================================================
 
 uninstall_all() {
@@ -810,6 +786,30 @@ final_cleanup() {
     systemctl daemon-reload
     
     print_success "Final cleanup completed"
+}
+
+# =============================================================================
+# MAIN MENU
+# =============================================================================
+
+show_menu() {
+    print_header
+    echo "What would you like to do?"
+    echo ""
+    echo "1) Install Panel (Web Interface)"
+    echo "2) Install Daemon (Node Agent)"
+    echo "3) Uninstall Everything"
+    echo "4) Exit"
+    echo ""
+    read -p "Enter your choice (1-4): " choice
+    
+    case $choice in
+        1) install_panel ;;
+        2) install_daemon ;;
+        3) uninstall_all ;;
+        4) exit 0 ;;
+        *) print_error "Invalid choice"; show_menu ;;
+    esac
 }
 
 # =============================================================================
