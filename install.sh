@@ -166,168 +166,130 @@ install_dependencies() {
     mv composer.phar /usr/local/bin/composer
     chmod +x /usr/local/bin/composer
     
-    # Initialize MariaDB properly
-    print_info "Initializing MariaDB..."
+    # BULLETPROOF MariaDB Setup
+    print_info "Setting up MariaDB (bulletproof method)..."
     
-    # Stop MariaDB if it's running
+    # Stop all MariaDB processes
     systemctl stop mariadb 2>/dev/null || true
+    pkill -f mariadbd 2>/dev/null || true
+    pkill -f mysqld 2>/dev/null || true
+    sleep 3
     
-    # Remove existing data if corrupted
-    if [[ -d "/var/lib/mysql" ]] && [[ ! -f "/var/lib/mysql/ibdata1" ]]; then
-        print_warning "Removing corrupted MariaDB data directory"
-        rm -rf /var/lib/mysql/*
+    # Backup existing data if it exists
+    if [[ -d "/var/lib/mysql" ]] && [[ -f "/var/lib/mysql/ibdata1" ]]; then
+        print_info "Backing up existing MariaDB data..."
+        mv /var/lib/mysql /var/lib/mysql.backup.$(date +%s)
     fi
     
-    # Initialize MariaDB if needed
-    if [[ ! -f "/var/lib/mysql/ibdata1" ]]; then
-        print_info "Initializing MariaDB data directory..."
+    # Create fresh data directory
+    rm -rf /var/lib/mysql
+    mkdir -p /var/lib/mysql
+    chown mysql:mysql /var/lib/mysql
+    chmod 755 /var/lib/mysql
+    
+    # Initialize MariaDB using the most reliable method
+    print_info "Initializing MariaDB data directory..."
+    
+    # Method 1: Try mariadb-install-db (modern)
+    if command -v mariadb-install-db &> /dev/null; then
+        print_info "Using mariadb-install-db..."
+        mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql --auth-root-authentication-method=normal
+    # Method 2: Try mysqld --initialize (modern)
+    elif command -v mysqld &> /dev/null; then
+        print_info "Using mysqld --initialize..."
+        mysqld --initialize-insecure --user=mysql --basedir=/usr --datadir=/var/lib/mysql
+    # Method 3: Try mysql_install_db (legacy)
+    elif command -v mysql_install_db &> /dev/null; then
+        print_info "Using mysql_install_db..."
         mysql_install_db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
+    else
+        print_error "No MariaDB initialization tool found!"
+        exit 1
     fi
     
     # Set proper permissions
     chown -R mysql:mysql /var/lib/mysql
     chmod -R 755 /var/lib/mysql
     
-    # Start and enable services
-    print_info "Starting services..."
+    # Enable services
     systemctl enable nginx mariadb redis-server
     
-    # Start MariaDB with retry
+    # Start MariaDB with multiple retries
     print_info "Starting MariaDB..."
-    systemctl start mariadb
-    
-    # Wait for MariaDB to be ready
-    sleep 5
-    
-    # Check if MariaDB started successfully
-    if ! systemctl is-active --quiet mariadb; then
-        print_error "MariaDB failed to start. Attempting to fix..."
+    for attempt in 1 2 3; do
+        print_info "Attempt $attempt to start MariaDB..."
         
-        # Check MariaDB status
-        systemctl status mariadb --no-pager -l
-        
-        # Try to fix common issues
-        print_info "Attempting to fix MariaDB..."
-        
-        # Stop any running processes
-        pkill -f mariadbd 2>/dev/null || true
-        pkill -f mysqld 2>/dev/null || true
-        sleep 2
-        
-        # Reinitialize if needed
-        if [[ ! -f "/var/lib/mysql/ibdata1" ]]; then
-            print_info "Reinitializing MariaDB..."
-            mysql_install_db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
-            chown -R mysql:mysql /var/lib/mysql
-        fi
-        
-        # Try starting again
         systemctl start mariadb
         sleep 5
         
-        # Final check
-        if ! systemctl is-active --quiet mariadb; then
-            print_error "MariaDB still failed to start. Please check logs manually:"
-            print_error "sudo journalctl -xeu mariadb.service"
-            print_error "sudo tail -50 /var/log/mysql/error.log"
-            exit 1
+        if systemctl is-active --quiet mariadb; then
+            print_success "MariaDB started successfully!"
+            break
+        else
+            print_warning "MariaDB failed to start on attempt $attempt"
+            
+            if [[ $attempt -lt 3 ]]; then
+                print_info "Retrying..."
+                systemctl stop mariadb 2>/dev/null || true
+                pkill -f mariadbd 2>/dev/null || true
+                sleep 3
+            else
+                print_error "MariaDB failed to start after 3 attempts"
+                print_error "MariaDB status:"
+                systemctl status mariadb --no-pager -l
+                print_error "MariaDB logs:"
+                journalctl -u mariadb --no-pager -l | tail -20
+                exit 1
+            fi
         fi
+    done
+    
+    # Verify MariaDB is working
+    print_info "Verifying MariaDB connection..."
+    if mysql -u root -e "SELECT 1;" 2>/dev/null; then
+        print_success "MariaDB is working correctly!"
+    else
+        print_error "MariaDB is not responding properly"
+        exit 1
     fi
     
     # Start other services
     systemctl start nginx redis-server
     
-    print_success "Dependencies installed and services started"
+    print_success "All dependencies installed and services started successfully!"
 }
 
 setup_database() {
     print_step "Setting up database..."
     
-    print_info "Securing MariaDB installation..."
+    print_info "Configuring MariaDB for hxnodes..."
     
-    # Check if MariaDB is running
+    # MariaDB should already be running from the bulletproof setup
     if ! systemctl is-active --quiet mariadb; then
-        print_info "Starting MariaDB service..."
+        print_error "MariaDB is not running. Starting it..."
         systemctl start mariadb
-        
-        # Wait a moment for MariaDB to start
         sleep 3
         
-        # Check if it started successfully
         if ! systemctl is-active --quiet mariadb; then
-            print_error "MariaDB failed to start. Checking status..."
-            systemctl status mariadb --no-pager -l
-            print_error "Please check MariaDB logs and ensure it's properly installed"
+            print_error "Failed to start MariaDB"
             exit 1
         fi
     fi
     
-    # First try to access MariaDB without password (initial state)
-    if mysql -u root -e "SELECT 1;" 2>/dev/null; then
-        print_info "MariaDB root access without password detected"
-        
-        # Set root password using the password provided by user
-        mysql -u root <<EOF
+    # Set root password (MariaDB should have no password initially)
+    print_info "Setting MariaDB root password..."
+    mysql -u root <<EOF
 ALTER USER 'root'@'localhost' IDENTIFIED BY '$DB_PASS';
 FLUSH PRIVILEGES;
 EOF
-        
-        print_info "Root password set successfully"
-    else
-        print_warning "MariaDB root access failed, trying safe mode reset"
-        
-        # Stop MariaDB
-        systemctl stop mariadb
-        sleep 2
-        
-        # Kill any remaining MariaDB processes
-        pkill -f mariadbd 2>/dev/null || true
-        pkill -f mysqld 2>/dev/null || true
-        sleep 2
-        
-        # Start MariaDB in safe mode
-        print_info "Starting MariaDB in safe mode..."
-        mysqld_safe --skip-grant-tables --skip-networking &
-        SAFE_PID=$!
-        
-        # Wait for safe mode to start
-        sleep 5
-        
-        # Check if safe mode is running
-        if ! kill -0 $SAFE_PID 2>/dev/null; then
-            print_error "Failed to start MariaDB in safe mode"
-            print_error "MariaDB error logs:"
-            tail -20 /var/log/mysql/error.log 2>/dev/null || echo "No error log found"
-            exit 1
-        fi
-        
-        # Reset root password
-        mysql -u root <<EOF
-FLUSH PRIVILEGES;
-ALTER USER 'root'@'localhost' IDENTIFIED BY '$DB_PASS';
-FLUSH PRIVILEGES;
-EOF
-        
-        # Stop safe mode MariaDB
-        kill $SAFE_PID
-        sleep 3
-        
-        # Start MariaDB normally
-        systemctl start mariadb
-        
-        # Wait for MariaDB to be ready
-        sleep 5
-    fi
     
-    # Test the new password
+    # Verify the password works
     if ! mysql -u root -p"$DB_PASS" -e "SELECT 1;" 2>/dev/null; then
         print_error "Failed to set MariaDB root password"
-        print_error "Current MariaDB status:"
-        systemctl status mariadb --no-pager -l
         exit 1
     fi
     
-    print_info "MariaDB root password verified"
+    print_info "MariaDB root password set successfully"
     
     # Secure the installation
     mysql -u root -p"$DB_PASS" <<EOF
