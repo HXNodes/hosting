@@ -116,8 +116,11 @@ get_panel_config() {
     read -s -p "Enter admin password: " ADMIN_PASS
     echo ""
     
-    # Generate secure passwords
-    DB_PASS=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+    # Get database password
+    read -s -p "Enter database password: " DB_PASS
+    echo ""
+    
+    # Generate JWT secret
     JWT_SECRET=$(openssl rand -base64 64 | tr -d "=+/" | cut -c1-50)
     
     print_info "Using domain: $PANEL_DOMAIN"
