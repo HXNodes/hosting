@@ -9,8 +9,192 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
-// Models will be defined here in the next step
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      Role     @default(USER)
+  balance   Float    @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  servers   Server[]
+  invoices  Invoice[]
+  payments  Payment[]
+  referrals Referral[] @relation("Referrer")
+  referred  Referral[] @relation("Referred")
+  affiliateCode String? @unique
+
+  @@map("users")
+}
+
+model Server {
+  id          String   @id @default(cuid())
+  name        String
+  game        String
+  port        Int
+  maxPlayers  Int
+  status      ServerStatus @default(STOPPED)
+  nodeId      String
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node        Node     @relation(fields: [nodeId], references: [id])
+  resources   Resource[]
+  files       File[]
+
+  @@map("servers")
+}
+
+model Node {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  ip        String
+  port      Int      @default(5001)
+  status    NodeStatus @default(OFFLINE)
+  location  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  servers   Server[]
+
+  @@map("nodes")
+}
+
+model Resource {
+  id        String   @id @default(cuid())
+  serverId  String
+  cpu       Float
+  memory    Float
+  disk      Float
+  network   Float
+  timestamp DateTime @default(now())
+
+  // Relations
+  server    Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@map("resources")
+}
+
+model File {
+  id        String   @id @default(cuid())
+  serverId  String
+  name      String
+  path      String
+  size      Int
+  type      String
+  createdAt DateTime @default(now())
+
+  // Relations
+  server    Server   @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@map("files")
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  userId      String
+  amount      Float
+  status      InvoiceStatus @default(PENDING)
+  description String?
+  dueDate     DateTime
+  paidAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments    Payment[]
+
+  @@map("invoices")
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  userId    String
+  invoiceId String?
+  amount    Float
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  gatewayId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+
+  @@map("payments")
+}
+
+model Referral {
+  id          String   @id @default(cuid())
+  referrerId  String
+  referredId  String
+  commission  Float    @default(0)
+  status      ReferralStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  referrer    User     @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred    User     @relation("Referred", fields: [referredId], references: [id], onDelete: Cascade)
+
+  @@unique([referrerId, referredId])
+  @@map("referrals")
+}
+
+// Enums
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ServerStatus {
+  RUNNING
+  STOPPED
+  STARTING
+  STOPPING
+  ERROR
+}
+
+enum NodeStatus {
+  ONLINE
+  OFFLINE
+  MAINTENANCE
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  UPI
+  PAYPAL
+  CRYPTO
+  CREDIT_CARD
+}
+
+enum ReferralStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

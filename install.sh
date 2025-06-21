@@ -364,8 +364,16 @@ EOF
     
     # Run database migrations if Prisma exists
     if [[ -f "prisma/schema.prisma" ]]; then
+        print_info "Setting up Prisma database..."
+        
+        # Generate Prisma client
         npx prisma generate
+        
+        # Create and run initial migration
+        npx prisma migrate dev --name init --create-only
         npx prisma migrate deploy
+        
+        print_success "Prisma database setup completed"
     fi
     
     print_success "Backend setup completed"
