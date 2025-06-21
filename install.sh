@@ -481,13 +481,192 @@ setup_frontend() {
     # Install dependencies
     npm install
     
+    # Create missing frontend files if they don't exist
+    if [[ ! -f "index.html" ]]; then
+        print_info "Creating index.html..."
+        cat > index.html <<'EOF'
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>hxnodes - Game Server Management</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+EOF
+    fi
+    
+    if [[ ! -f "vite.config.ts" ]]; then
+        print_info "Creating vite.config.ts..."
+        cat > vite.config.ts <<'EOF'
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:4000',
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: 'ws://localhost:4000',
+        ws: true,
+      },
+    },
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+  },
+})
+EOF
+    fi
+    
+    if [[ ! -f "tsconfig.json" ]]; then
+        print_info "Creating tsconfig.json..."
+        cat > tsconfig.json <<'EOF'
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+EOF
+    fi
+    
+    if [[ ! -f "tsconfig.node.json" ]]; then
+        print_info "Creating tsconfig.node.json..."
+        cat > tsconfig.node.json <<'EOF'
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["vite.config.ts"]
+}
+EOF
+    fi
+    
+    # Create src directory and files
+    mkdir -p src
+    
+    if [[ ! -f "src/main.tsx" ]]; then
+        print_info "Creating src/main.tsx..."
+        cat > src/main.tsx <<'EOF'
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App.tsx'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)
+EOF
+    fi
+    
+    if [[ ! -f "src/index.css" ]]; then
+        print_info "Creating src/index.css..."
+        cat > src/index.css <<'EOF'
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+EOF
+    fi
+    
+    if [[ ! -f "src/App.tsx" ]]; then
+        print_info "Creating src/App.tsx..."
+        cat > src/App.tsx <<'EOF'
+import React from 'react'
+
+function App() {
+  return (
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-4xl font-bold text-center mb-8">
+          hxnodes - Game Server Management
+        </h1>
+        <div className="bg-gray-800 rounded-lg p-6 max-w-md mx-auto">
+          <p className="text-center text-gray-300">
+            Welcome to hxnodes! Your game server management panel is being set up.
+          </p>
+          <div className="mt-4 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+            <p className="mt-2 text-sm text-gray-400">Loading...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default App
+EOF
+    fi
+    
     # Create .env file
     cat > .env <<EOF
 VITE_API_BASE_URL=/api
 VITE_PANEL_NAME=hxnodes
 EOF
     
+    # Install additional dependencies if needed
+    npm install vite @vitejs/plugin-react @types/react @types/react-dom
+    
     # Build frontend
+    print_info "Building frontend..."
     npm run build
     
     print_success "Frontend setup completed"
