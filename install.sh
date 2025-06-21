@@ -456,8 +456,13 @@ CRYPTO_API_KEY=
 BASE_URL=http://$PANEL_DOMAIN
 EOF
     
-    # Run database migrations if Prisma exists
+    # Update Prisma schema to use MySQL if it exists
     if [[ -f "prisma/schema.prisma" ]]; then
+        print_info "Updating Prisma schema to use MySQL..."
+        
+        # Update the provider from postgresql to mysql
+        sed -i 's/provider = "postgresql"/provider = "mysql"/g' prisma/schema.prisma
+        
         print_info "Setting up Prisma database..."
         
         # Generate Prisma client
