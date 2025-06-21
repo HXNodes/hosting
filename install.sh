@@ -359,41 +359,47 @@ install_panel_files() {
         if [[ -n "$FOUND_LOCATION" ]]; then
             print_info "Using source location: $FOUND_LOCATION"
             
-            # Copy only specific project directories and files
-            if [[ -d "$FOUND_LOCATION/backend" ]]; then
-                cp -r "$FOUND_LOCATION/backend" ./
-                print_info "Backend directory copied"
-            fi
-            
-            if [[ -d "$FOUND_LOCATION/frontend" ]]; then
-                cp -r "$FOUND_LOCATION/frontend" ./
-                print_info "Frontend directory copied"
-            fi
-            
-            if [[ -d "$FOUND_LOCATION/node-agent" ]]; then
-                cp -r "$FOUND_LOCATION/node-agent" ./
-                print_info "Node agent directory copied"
-            fi
-            
-            if [[ -d "$FOUND_LOCATION/docs" ]]; then
-                cp -r "$FOUND_LOCATION/docs" ./
-                print_info "Docs directory copied"
-            fi
-            
-            if [[ -d "$FOUND_LOCATION/scripts" ]]; then
-                cp -r "$FOUND_LOCATION/scripts" ./
-                print_info "Scripts directory copied"
-            fi
-            
-            # Copy individual files
-            for file in README.md install.sh setup.sh uninstall.sh install-node.sh; do
-                if [[ -f "$FOUND_LOCATION/$file" ]]; then
-                    cp "$FOUND_LOCATION/$file" ./
-                    print_info "File $file copied"
+            # Check if we're already in the correct location
+            if [[ "$FOUND_LOCATION" == "$PANEL_DIR" ]] || [[ "$FOUND_LOCATION" == "$(pwd)" ]]; then
+                print_info "Files are already in the correct location ($PANEL_DIR)"
+                print_success "No copying needed - files are already in place"
+            else
+                # Copy only specific project directories and files
+                if [[ -d "$FOUND_LOCATION/backend" ]]; then
+                    cp -r "$FOUND_LOCATION/backend" ./
+                    print_info "Backend directory copied"
                 fi
-            done
-            
-            print_success "Project files copied from $FOUND_LOCATION"
+                
+                if [[ -d "$FOUND_LOCATION/frontend" ]]; then
+                    cp -r "$FOUND_LOCATION/frontend" ./
+                    print_info "Frontend directory copied"
+                fi
+                
+                if [[ -d "$FOUND_LOCATION/node-agent" ]]; then
+                    cp -r "$FOUND_LOCATION/node-agent" ./
+                    print_info "Node agent directory copied"
+                fi
+                
+                if [[ -d "$FOUND_LOCATION/docs" ]]; then
+                    cp -r "$FOUND_LOCATION/docs" ./
+                    print_info "Docs directory copied"
+                fi
+                
+                if [[ -d "$FOUND_LOCATION/scripts" ]]; then
+                    cp -r "$FOUND_LOCATION/scripts" ./
+                    print_info "Scripts directory copied"
+                fi
+                
+                # Copy individual files
+                for file in README.md install.sh setup.sh uninstall.sh install-node.sh; do
+                    if [[ -f "$FOUND_LOCATION/$file" ]]; then
+                        cp "$FOUND_LOCATION/$file" ./
+                        print_info "File $file copied"
+                    fi
+                done
+                
+                print_success "Project files copied from $FOUND_LOCATION"
+            fi
             
         else
             print_error "No local files found in any expected location."
