@@ -178,6 +178,23 @@ setup_database() {
     
     print_info "Securing MariaDB installation..."
     
+    # Check if MariaDB is running
+    if ! systemctl is-active --quiet mariadb; then
+        print_info "Starting MariaDB service..."
+        systemctl start mariadb
+        
+        # Wait a moment for MariaDB to start
+        sleep 3
+        
+        # Check if it started successfully
+        if ! systemctl is-active --quiet mariadb; then
+            print_error "MariaDB failed to start. Checking status..."
+            systemctl status mariadb --no-pager -l
+            print_error "Please check MariaDB logs and ensure it's properly installed"
+            exit 1
+        fi
+    fi
+    
     # First try to access MariaDB without password (initial state)
     if mysql -u root -e "SELECT 1;" 2>/dev/null; then
         print_info "MariaDB root access without password detected"
@@ -192,12 +209,30 @@ EOF
     else
         print_warning "MariaDB root access failed, trying safe mode reset"
         
-        # Stop MariaDB to reset root password if needed
+        # Stop MariaDB
         systemctl stop mariadb
+        sleep 2
         
-        # Start MariaDB in safe mode to reset root password
+        # Kill any remaining MariaDB processes
+        pkill -f mariadbd 2>/dev/null || true
+        pkill -f mysqld 2>/dev/null || true
+        sleep 2
+        
+        # Start MariaDB in safe mode
+        print_info "Starting MariaDB in safe mode..."
         mysqld_safe --skip-grant-tables --skip-networking &
-        sleep 3
+        SAFE_PID=$!
+        
+        # Wait for safe mode to start
+        sleep 5
+        
+        # Check if safe mode is running
+        if ! kill -0 $SAFE_PID 2>/dev/null; then
+            print_error "Failed to start MariaDB in safe mode"
+            print_error "MariaDB error logs:"
+            tail -20 /var/log/mysql/error.log 2>/dev/null || echo "No error log found"
+            exit 1
+        fi
         
         # Reset root password
         mysql -u root <<EOF
@@ -207,8 +242,8 @@ FLUSH PRIVILEGES;
 EOF
         
         # Stop safe mode MariaDB
-        pkill -f mysqld_safe
-        sleep 2
+        kill $SAFE_PID
+        sleep 3
         
         # Start MariaDB normally
         systemctl start mariadb
@@ -220,6 +255,8 @@ EOF
     # Test the new password
     if ! mysql -u root -p"$DB_PASS" -e "SELECT 1;" 2>/dev/null; then
         print_error "Failed to set MariaDB root password"
+        print_error "Current MariaDB status:"
+        systemctl status mariadb --no-pager -l
         exit 1
     fi
     
