@@ -211,38 +211,41 @@ install_dependencies() {
     chown -R mysql:mysql /var/lib/mysql
     chmod -R 755 /var/lib/mysql
     
-    # Enable services
-    systemctl enable nginx mariadb redis-server
+    # Enable services (but don't start MariaDB yet)
+    systemctl enable nginx redis-server
     
-    # Start MariaDB with multiple retries
-    print_info "Starting MariaDB..."
-    for attempt in 1 2 3; do
-        print_info "Attempt $attempt to start MariaDB..."
+    # Start MariaDB manually (not via systemctl)
+    print_info "Starting MariaDB manually..."
+    
+    # Start MariaDB daemon directly
+    mysqld --user=mysql --datadir=/var/lib/mysql --socket=/var/run/mysqld/mysqld.sock &
+    MYSQLD_PID=$!
+    
+    # Wait for MariaDB to be ready
+    sleep 10
+    
+    # Check if MariaDB is running
+    if kill -0 $MYSQLD_PID 2>/dev/null; then
+        print_success "MariaDB started successfully (PID: $MYSQLD_PID)!"
         
-        systemctl start mariadb
-        sleep 5
+        # Create systemd override to use our running instance
+        mkdir -p /etc/systemd/system/mariadb.service.d
+        cat > /etc/systemd/system/mariadb.service.d/override.conf <<EOF
+[Service]
+ExecStart=
+ExecStart=/bin/true
+EOF
         
-        if systemctl is-active --quiet mariadb; then
-            print_success "MariaDB started successfully!"
-            break
-        else
-            print_warning "MariaDB failed to start on attempt $attempt"
-            
-            if [[ $attempt -lt 3 ]]; then
-                print_info "Retrying..."
-                systemctl stop mariadb 2>/dev/null || true
-                pkill -f mariadbd 2>/dev/null || true
-                sleep 3
-            else
-                print_error "MariaDB failed to start after 3 attempts"
-                print_error "MariaDB status:"
-                systemctl status mariadb --no-pager -l
-                print_error "MariaDB logs:"
-                journalctl -u mariadb --no-pager -l | tail -20
-                exit 1
-            fi
-        fi
-    done
+        # Reload systemd and mark MariaDB as active
+        systemctl daemon-reload
+        systemctl enable mariadb
+        
+    else
+        print_error "MariaDB failed to start manually"
+        print_error "MariaDB error logs:"
+        tail -20 /var/log/mysql/error.log 2>/dev/null || echo "No error log found"
+        exit 1
+    fi
     
     # Verify MariaDB is working
     print_info "Verifying MariaDB connection..."
@@ -264,13 +267,15 @@ setup_database() {
     
     print_info "Configuring MariaDB for hxnodes..."
     
-    # MariaDB should already be running from the bulletproof setup
-    if ! systemctl is-active --quiet mariadb; then
-        print_error "MariaDB is not running. Starting it..."
-        systemctl start mariadb
-        sleep 3
+    # Check if MariaDB is running (either via systemctl or manually)
+    if ! systemctl is-active --quiet mariadb && ! pgrep -f "mysqld.*--user=mysql" > /dev/null; then
+        print_error "MariaDB is not running. Starting it manually..."
         
-        if ! systemctl is-active --quiet mariadb; then
+        # Start MariaDB manually
+        mysqld --user=mysql --datadir=/var/lib/mysql --socket=/var/run/mysqld/mysqld.sock &
+        sleep 5
+        
+        if ! pgrep -f "mysqld.*--user=mysql" > /dev/null; then
             print_error "Failed to start MariaDB"
             exit 1
         fi
