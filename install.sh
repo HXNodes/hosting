@@ -326,12 +326,28 @@ install_panel_files() {
         print_success "Repository cloned successfully"
     else
         # If that fails, try with local files
-        print_warning "Repository clone failed, using local files"
-        if [[ -d "/root/hosting" ]]; then
+        print_warning "Repository clone failed, checking for local files..."
+        
+        # Check if we're running from a git repository
+        if [[ -d ".git" ]] && [[ -f "backend/package.json" ]] && [[ -f "frontend/package.json" ]]; then
+            print_info "Using current directory as source..."
+            # We're already in the project directory, copy files to panel directory
+            cd /
+            cp -r $(pwd)/* $PANEL_DIR/
+            cd $PANEL_DIR
+            print_success "Local files copied to panel directory"
+        elif [[ -d "/root/hosting" ]]; then
             cp -r /root/hosting/* .
-            print_success "Local files copied"
+            print_success "Local files copied from /root/hosting"
+        elif [[ -d "/home/$SUDO_USER/hosting" ]]; then
+            cp -r /home/$SUDO_USER/hosting/* .
+            print_success "Local files copied from /home/$SUDO_USER/hosting"
         else
-            print_error "No local files found. Please ensure the repository is accessible."
+            print_error "No local files found. Please ensure the repository is accessible or files are present."
+            print_info "You can:"
+            print_info "1. Make the repository public"
+            print_info "2. Clone it manually to /root/hosting"
+            print_info "3. Place the files in the current directory"
             exit 1
         fi
     fi
