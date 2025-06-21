@@ -166,11 +166,78 @@ install_dependencies() {
     mv composer.phar /usr/local/bin/composer
     chmod +x /usr/local/bin/composer
     
-    # Start and enable services
-    systemctl enable nginx mariadb redis-server
-    systemctl start nginx mariadb redis-server
+    # Initialize MariaDB properly
+    print_info "Initializing MariaDB..."
     
-    print_success "Dependencies installed"
+    # Stop MariaDB if it's running
+    systemctl stop mariadb 2>/dev/null || true
+    
+    # Remove existing data if corrupted
+    if [[ -d "/var/lib/mysql" ]] && [[ ! -f "/var/lib/mysql/ibdata1" ]]; then
+        print_warning "Removing corrupted MariaDB data directory"
+        rm -rf /var/lib/mysql/*
+    fi
+    
+    # Initialize MariaDB if needed
+    if [[ ! -f "/var/lib/mysql/ibdata1" ]]; then
+        print_info "Initializing MariaDB data directory..."
+        mysql_install_db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
+    fi
+    
+    # Set proper permissions
+    chown -R mysql:mysql /var/lib/mysql
+    chmod -R 755 /var/lib/mysql
+    
+    # Start and enable services
+    print_info "Starting services..."
+    systemctl enable nginx mariadb redis-server
+    
+    # Start MariaDB with retry
+    print_info "Starting MariaDB..."
+    systemctl start mariadb
+    
+    # Wait for MariaDB to be ready
+    sleep 5
+    
+    # Check if MariaDB started successfully
+    if ! systemctl is-active --quiet mariadb; then
+        print_error "MariaDB failed to start. Attempting to fix..."
+        
+        # Check MariaDB status
+        systemctl status mariadb --no-pager -l
+        
+        # Try to fix common issues
+        print_info "Attempting to fix MariaDB..."
+        
+        # Stop any running processes
+        pkill -f mariadbd 2>/dev/null || true
+        pkill -f mysqld 2>/dev/null || true
+        sleep 2
+        
+        # Reinitialize if needed
+        if [[ ! -f "/var/lib/mysql/ibdata1" ]]; then
+            print_info "Reinitializing MariaDB..."
+            mysql_install_db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
+            chown -R mysql:mysql /var/lib/mysql
+        fi
+        
+        # Try starting again
+        systemctl start mariadb
+        sleep 5
+        
+        # Final check
+        if ! systemctl is-active --quiet mariadb; then
+            print_error "MariaDB still failed to start. Please check logs manually:"
+            print_error "sudo journalctl -xeu mariadb.service"
+            print_error "sudo tail -50 /var/log/mysql/error.log"
+            exit 1
+        fi
+    fi
+    
+    # Start other services
+    systemctl start nginx redis-server
+    
+    print_success "Dependencies installed and services started"
 }
 
 setup_database() {
