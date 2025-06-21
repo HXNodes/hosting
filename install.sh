@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# hxnodes Installation Script (Pterodactyl Style)
+# hxnodes Installation Script (FINAL BULLETPROOF VERSION)
 # =============================================================================
 # This script installs hxnodes panel, daemon, or uninstalls them
 # =============================================================================
@@ -31,7 +31,7 @@ DB_PASS=""
 print_header() {
     echo -e "${BLUE}"
     echo "============================================================================="
-    echo "  hxnodes Installation Script"
+    echo "  hxnodes Installation Script (FINAL VERSION)"
     echo "============================================================================="
     echo -e "${NC}"
 }
@@ -471,13 +471,13 @@ EOF
         # Generate Prisma client
         npx prisma generate
         
-        # Create initial migration without shadow database
+        # Create initial migration
         print_info "Creating initial migration..."
-        npx prisma migrate dev --name init --create-only --skip-seed
+        npx prisma migrate dev --name init --create-only
         
-        # Apply the migration directly
+        # Apply the migration
         print_info "Applying migration..."
-        npx prisma migrate deploy --skip-seed
+        npx prisma migrate deploy
         
         print_success "Prisma database setup completed"
     fi
