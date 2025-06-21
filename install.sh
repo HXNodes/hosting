@@ -176,32 +176,54 @@ install_dependencies() {
 setup_database() {
     print_step "Setting up database..."
     
-    # First, try to secure MariaDB installation without password
     print_info "Securing MariaDB installation..."
     
-    # Stop MariaDB to reset root password if needed
-    systemctl stop mariadb
-    
-    # Start MariaDB in safe mode to reset root password
-    mysqld_safe --skip-grant-tables --skip-networking &
-    sleep 3
-    
-    # Reset root password
-    mysql -u root <<EOF
+    # First try to access MariaDB without password (initial state)
+    if mysql -u root -e "SELECT 1;" 2>/dev/null; then
+        print_info "MariaDB root access without password detected"
+        
+        # Set root password using the password provided by user
+        mysql -u root <<EOF
+ALTER USER 'root'@'localhost' IDENTIFIED BY '$DB_PASS';
+FLUSH PRIVILEGES;
+EOF
+        
+        print_info "Root password set successfully"
+    else
+        print_warning "MariaDB root access failed, trying safe mode reset"
+        
+        # Stop MariaDB to reset root password if needed
+        systemctl stop mariadb
+        
+        # Start MariaDB in safe mode to reset root password
+        mysqld_safe --skip-grant-tables --skip-networking &
+        sleep 3
+        
+        # Reset root password
+        mysql -u root <<EOF
 FLUSH PRIVILEGES;
 ALTER USER 'root'@'localhost' IDENTIFIED BY '$DB_PASS';
 FLUSH PRIVILEGES;
 EOF
+        
+        # Stop safe mode MariaDB
+        pkill -f mysqld_safe
+        sleep 2
+        
+        # Start MariaDB normally
+        systemctl start mariadb
+        
+        # Wait for MariaDB to be ready
+        sleep 5
+    fi
     
-    # Stop safe mode MariaDB
-    pkill -f mysqld_safe
-    sleep 2
+    # Test the new password
+    if ! mysql -u root -p"$DB_PASS" -e "SELECT 1;" 2>/dev/null; then
+        print_error "Failed to set MariaDB root password"
+        exit 1
+    fi
     
-    # Start MariaDB normally
-    systemctl start mariadb
-    
-    # Wait for MariaDB to be ready
-    sleep 5
+    print_info "MariaDB root password verified"
     
     # Secure the installation
     mysql -u root -p"$DB_PASS" <<EOF
