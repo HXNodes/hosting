@@ -334,17 +334,121 @@ install_panel_files() {
         # Check if we're running from a git repository with project structure
         if [[ -d "$SCRIPT_DIR/.git" ]] && [[ -f "$SCRIPT_DIR/backend/package.json" ]] && [[ -f "$SCRIPT_DIR/frontend/package.json" ]]; then
             print_info "Using script directory as source: $SCRIPT_DIR"
-            # Copy only the project files, excluding system directories
-            rsync -av --exclude='.git' --exclude='node_modules' --exclude='dist' --exclude='build' "$SCRIPT_DIR/" ./
+            
+            # Copy only specific project directories and files
+            if [[ -d "$SCRIPT_DIR/backend" ]]; then
+                cp -r "$SCRIPT_DIR/backend" ./
+                print_info "Backend directory copied"
+            fi
+            
+            if [[ -d "$SCRIPT_DIR/frontend" ]]; then
+                cp -r "$SCRIPT_DIR/frontend" ./
+                print_info "Frontend directory copied"
+            fi
+            
+            if [[ -d "$SCRIPT_DIR/node-agent" ]]; then
+                cp -r "$SCRIPT_DIR/node-agent" ./
+                print_info "Node agent directory copied"
+            fi
+            
+            if [[ -d "$SCRIPT_DIR/docs" ]]; then
+                cp -r "$SCRIPT_DIR/docs" ./
+                print_info "Docs directory copied"
+            fi
+            
+            if [[ -d "$SCRIPT_DIR/scripts" ]]; then
+                cp -r "$SCRIPT_DIR/scripts" ./
+                print_info "Scripts directory copied"
+            fi
+            
+            # Copy individual files
+            for file in README.md install.sh setup.sh uninstall.sh install-node.sh; do
+                if [[ -f "$SCRIPT_DIR/$file" ]]; then
+                    cp "$SCRIPT_DIR/$file" ./
+                    print_info "File $file copied"
+                fi
+            done
+            
             print_success "Project files copied from script directory"
+            
         elif [[ -d "/root/hosting" ]]; then
             print_info "Using /root/hosting as source..."
-            rsync -av --exclude='.git' --exclude='node_modules' --exclude='dist' --exclude='build' /root/hosting/ ./
+            
+            # Copy only specific project directories and files
+            if [[ -d "/root/hosting/backend" ]]; then
+                cp -r /root/hosting/backend ./
+                print_info "Backend directory copied"
+            fi
+            
+            if [[ -d "/root/hosting/frontend" ]]; then
+                cp -r /root/hosting/frontend ./
+                print_info "Frontend directory copied"
+            fi
+            
+            if [[ -d "/root/hosting/node-agent" ]]; then
+                cp -r /root/hosting/node-agent ./
+                print_info "Node agent directory copied"
+            fi
+            
+            if [[ -d "/root/hosting/docs" ]]; then
+                cp -r /root/hosting/docs ./
+                print_info "Docs directory copied"
+            fi
+            
+            if [[ -d "/root/hosting/scripts" ]]; then
+                cp -r /root/hosting/scripts ./
+                print_info "Scripts directory copied"
+            fi
+            
+            # Copy individual files
+            for file in README.md install.sh setup.sh uninstall.sh install-node.sh; do
+                if [[ -f "/root/hosting/$file" ]]; then
+                    cp "/root/hosting/$file" ./
+                    print_info "File $file copied"
+                fi
+            done
+            
             print_success "Local files copied from /root/hosting"
+            
         elif [[ -d "/home/$SUDO_USER/hosting" ]]; then
             print_info "Using /home/$SUDO_USER/hosting as source..."
-            rsync -av --exclude='.git' --exclude='node_modules' --exclude='dist' --exclude='build' "/home/$SUDO_USER/hosting/" ./
+            
+            # Copy only specific project directories and files
+            if [[ -d "/home/$SUDO_USER/hosting/backend" ]]; then
+                cp -r "/home/$SUDO_USER/hosting/backend" ./
+                print_info "Backend directory copied"
+            fi
+            
+            if [[ -d "/home/$SUDO_USER/hosting/frontend" ]]; then
+                cp -r "/home/$SUDO_USER/hosting/frontend" ./
+                print_info "Frontend directory copied"
+            fi
+            
+            if [[ -d "/home/$SUDO_USER/hosting/node-agent" ]]; then
+                cp -r "/home/$SUDO_USER/hosting/node-agent" ./
+                print_info "Node agent directory copied"
+            fi
+            
+            if [[ -d "/home/$SUDO_USER/hosting/docs" ]]; then
+                cp -r "/home/$SUDO_USER/hosting/docs" ./
+                print_info "Docs directory copied"
+            fi
+            
+            if [[ -d "/home/$SUDO_USER/hosting/scripts" ]]; then
+                cp -r "/home/$SUDO_USER/hosting/scripts" ./
+                print_info "Scripts directory copied"
+            fi
+            
+            # Copy individual files
+            for file in README.md install.sh setup.sh uninstall.sh install-node.sh; do
+                if [[ -f "/home/$SUDO_USER/hosting/$file" ]]; then
+                    cp "/home/$SUDO_USER/hosting/$file" ./
+                    print_info "File $file copied"
+                fi
+            done
+            
             print_success "Local files copied from /home/$SUDO_USER/hosting"
+            
         else
             print_error "No local files found. Please ensure the repository is accessible or files are present."
             print_info "You can:"
